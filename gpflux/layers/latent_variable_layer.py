@@ -23,6 +23,7 @@ import tensorflow_probability as tfp
 
 from gpflow import default_float
 from gpflow.base import TensorType
+from gpflow.keras import tf_keras
 
 from gpflux.layers.trackable_layer import TrackableLayer
 from gpflux.types import ObservationType
@@ -67,14 +68,14 @@ class LatentVariableLayer(LayerWithObservations):
     prior: tfp.distributions.Distribution
     """ The prior distribution for the latent variables. """
 
-    encoder: tf.keras.layers.Layer
+    encoder: tf_keras.layers.Layer
     """
     An encoder that maps from a concatenation of inputs and targets to the
     parameters of the approximate posterior distribution of the corresponding
     latent variables.
     """
 
-    compositor: tf.keras.layers.Layer
+    compositor: tf_keras.layers.Layer
     """
     A layer that takes as input the two-element ``[layer_inputs, latent_variable_samples]`` list
     and combines the elements into a single output tensor.
@@ -83,8 +84,8 @@ class LatentVariableLayer(LayerWithObservations):
     def __init__(
         self,
         prior: tfp.distributions.Distribution,
-        encoder: tf.keras.layers.Layer,
-        compositor: Optional[tf.keras.layers.Layer] = None,
+        encoder: tf_keras.layers.Layer,
+        compositor: Optional[tf_keras.layers.Layer] = None,
         name: Optional[str] = None,
     ):
         """
@@ -94,7 +95,10 @@ class LatentVariableLayer(LayerWithObservations):
             posterior distribution; see :attr:`encoder`.
         :param compositor: A layer that combines layer inputs and latent variable
             samples into a single tensor; see :attr:`compositor`. If you do not specify a value for
-            this parameter, the default is ``tf.keras.layers.Concatenate(axis=-1)``.
+            this parameter, the default is
+            ``tf.keras.layers.Concatenate(axis=-1, dtype=default_float())``. Note that you should
+            set ``dtype`` of the layer to GPflow's default dtype as in
+            :meth:`~gpflow.default_float()`.
         :param name: The name of this layer (passed through to `tf.keras.layers.Layer`).
         """
 
@@ -103,7 +107,9 @@ class LatentVariableLayer(LayerWithObservations):
         self.distribution_class = prior.__class__
         self.encoder = encoder
         self.compositor = (
-            compositor if compositor is not None else tf.keras.layers.Concatenate(axis=-1)
+            compositor
+            if compositor is not None
+            else tf_keras.layers.Concatenate(axis=-1, dtype=default_float())
         )
 
     def call(

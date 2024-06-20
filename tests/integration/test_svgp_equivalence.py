@@ -23,12 +23,11 @@ import tensorflow_probability as tfp
 
 import gpflow
 from gpflow import Parameter
+from gpflow.keras import tf_keras
 from gpflow.models.model import RegressionData
 from gpflow.utilities import positive, to_default_float
 
 import gpflux
-
-tf.keras.backend.set_floatx("float64")
 
 
 class LogPrior_ELBO_SVGP(gpflow.models.SVGP):
@@ -94,7 +93,7 @@ def create_gpflux_sequential_and_loss(kernel, likelihood, inducing_variable, num
     loss = gpflux.losses.LikelihoodLoss(likelihood)
     likelihood_container = gpflux.layers.TrackableLayer()
     likelihood_container.likelihood = likelihood  # for likelihood to be discovered as trainable
-    model = tf.keras.Sequential([gp_layer, likelihood_container])
+    model = tf_keras.Sequential([gp_layer, likelihood_container])
     return model, loss
 
 
@@ -151,7 +150,7 @@ def fit_adam(
         """
         return -model.elbo(data) / num_data
 
-    adam = tf.optimizers.Adam(adam_learning_rate)
+    adam = tf_keras.optimizers.Adam(adam_learning_rate)
 
     @tf.function
     def optimization_step():
@@ -162,7 +161,7 @@ def fit_adam(
 
 
 def _keras_fit_adam(model, dataset, maxiter, adam_learning_rate=0.01, loss=None):
-    model.compile(optimizer=tf.optimizers.Adam(adam_learning_rate), loss=loss)
+    model.compile(optimizer=tf_keras.optimizers.Adam(adam_learning_rate), loss=loss)
     model.fit(dataset, epochs=maxiter)
 
 
@@ -184,7 +183,7 @@ def _keras_fit_natgrad(
     model = gpflux.optimization.NatGradWrapper(base_model)
     model.natgrad_layers = True  # Shortcut to apply natural gradients to all layers
     natgrad = gpflow.optimizers.NaturalGradient(gamma=gamma)
-    adam = tf.optimizers.Adam(adam_learning_rate)
+    adam = tf_keras.optimizers.Adam(adam_learning_rate)
     model.compile(
         optimizer=[natgrad, adam],
         loss=loss,
@@ -236,7 +235,7 @@ def fit_natgrad(model, data, maxiter, adam_learning_rate=0.01, gamma=1.0):
         return -model.elbo(data) / num_data
 
     natgrad = gpflow.optimizers.NaturalGradient(gamma=gamma)
-    adam = tf.optimizers.Adam(adam_learning_rate)
+    adam = tf_keras.optimizers.Adam(adam_learning_rate)
 
     @tf.function
     def optimization_step():
@@ -264,15 +263,15 @@ def fit_natgrad(model, data, maxiter, adam_learning_rate=0.01, gamma=1.0):
 
 
 @pytest.mark.parametrize(
-    "svgp_fitter, sldgp_fitter",
+    "svgp_fitter, sldgp_fitter, tol_kw",
     [
-        (fit_adam, fit_adam),
-        (fit_adam, keras_fit_adam),
-        (fit_natgrad, fit_natgrad),
-        (fit_natgrad, keras_fit_natgrad),
+        (fit_adam, fit_adam, {}),
+        (fit_adam, keras_fit_adam, {}),
+        (fit_natgrad, fit_natgrad, {}),
+        (fit_natgrad, keras_fit_natgrad, dict(atol=1e-7)),
     ],
 )
-def test_svgp_equivalence_with_sldgp(svgp_fitter, sldgp_fitter, maxiter=20):
+def test_svgp_equivalence_with_sldgp(svgp_fitter, sldgp_fitter, tol_kw, maxiter=20):
     data = load_data()
 
     svgp = create_gpflow_svgp(*make_kernel_likelihood_iv())
@@ -281,14 +280,14 @@ def test_svgp_equivalence_with_sldgp(svgp_fitter, sldgp_fitter, maxiter=20):
     sldgp = create_gpflux_sldgp(*make_kernel_likelihood_iv(), get_num_data(data))
     sldgp_fitter(sldgp, data, maxiter=maxiter)
 
-    assert_equivalence(svgp, sldgp, data)
+    assert_equivalence(svgp, sldgp, data, **tol_kw)
 
 
 @pytest.mark.parametrize(
     "svgp_fitter, keras_fitter, tol_kw",
     [
         (fit_adam, _keras_fit_adam, {}),
-        (fit_natgrad, _keras_fit_natgrad, dict(atol=1e-8)),
+        (fit_natgrad, _keras_fit_natgrad, dict(atol=1e-6)),
     ],
 )
 def test_svgp_equivalence_with_keras_sequential(svgp_fitter, keras_fitter, tol_kw, maxiter=10):

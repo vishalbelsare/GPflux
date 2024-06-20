@@ -6,11 +6,13 @@ from setuptools import find_namespace_packages, setup
 
 requirements = [
     "deprecated",
-    "gpflow>=2.1",
-    "numpy",
+    "gpflow>=2.9.2",
+    "numpy<2",
     "scipy",
-    "tensorflow>=2.5.0,<2.6.0",
-    "tensorflow-probability>=0.12.0,<0.14.0",
+    "tensorflow>=2.5.0,<2.17; platform_system!='Darwin' or platform_machine!='arm64'",
+    # NOTE: Support of Apple Silicon MacOS platforms is in an experimental mode
+    "tensorflow-macos>=2.5.0,<2.17; platform_system=='Darwin' and platform_machine=='arm64'",
+    "tensorflow-probability>=0.13.0,<0.25",
 ]
 
 with open("README.md", "r") as file:
@@ -38,9 +40,10 @@ setup(
     },
     classifiers=[
         "License :: OSI Approved :: Apache Software License",
-        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
         "Operating System :: OS Independent",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],

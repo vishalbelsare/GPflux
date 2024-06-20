@@ -35,12 +35,12 @@ import gpflow
 import gpflux
 
 from gpflow.config import default_float
+from gpflow.keras import tf_keras
 
 from gpflux.layers.basis_functions.fourier_features import RandomFourierFeaturesCosine
 from gpflux.sampling import KernelWithFeatureDecomposition
 from gpflux.models.deep_gp import sample_dgp
 
-tf.keras.backend.set_floatx("float64")
 
 # %% [markdown]
 """
@@ -100,10 +100,10 @@ model = dgp.as_training_model()
 """
 
 # %%
-model.compile(tf.optimizers.Adam(learning_rate=0.1))
+model.compile(tf_keras.optimizers.Adam(learning_rate=0.1))
 
 callbacks = [
-    tf.keras.callbacks.ReduceLROnPlateau(
+    tf_keras.callbacks.ReduceLROnPlateau(
         monitor="loss",
         patience=5,
         factor=0.95,

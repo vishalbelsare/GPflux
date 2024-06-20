@@ -18,9 +18,9 @@ import itertools
 import numpy as np
 import pytest
 import tensorflow as tf
-import tensorflow.keras as keras
 import tensorflow_probability as tfp
 
+from gpflow.keras import tf_keras
 from gpflow.kernels import RBF
 from gpflow.likelihoods import Gaussian
 from gpflow.mean_functions import Zero
@@ -29,8 +29,6 @@ from gpflux.encoders import DirectlyParameterizedNormalDiag
 from gpflux.helpers import construct_basic_inducing_variables, construct_basic_kernel
 from gpflux.layers import GPLayer, LatentVariableLayer, LikelihoodLayer
 from gpflux.models import DeepGP
-
-tf.keras.backend.set_floatx("float64")
 
 ############
 # Utilities
@@ -58,7 +56,7 @@ def train_model(x_data, y_data, model, use_keras_compile):
     dataset_dict = {"inputs": x_data, "targets": y_data}
     num_data = len(x_data)
 
-    optimizer = tf.keras.optimizers.Adam()
+    optimizer = tf_keras.optimizers.Adam()
 
     epochs = 20
 

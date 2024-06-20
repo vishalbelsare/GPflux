@@ -27,9 +27,9 @@ from sacred import Experiment
 from scipy.stats import norm
 from utils import ExperimentName, git_version
 
-from gpflux.architectures import Config, build_constant_input_dim_deep_gp
+from gpflow.keras import tf_keras
 
-tf.keras.backend.set_floatx("float64")
+from gpflux.architectures import Config, build_constant_input_dim_deep_gp
 
 THIS_DIR = Path(__file__).parent
 LOGS = THIS_DIR / "tmp"
@@ -91,10 +91,10 @@ def build_model(X, num_inducing, num_layers):
 
 
 @EXPERIMENT.capture
-def train_model(model: tf.keras.models.Model, data_train, batch_size, num_epochs):
+def train_model(model: tf_keras.models.Model, data_train, batch_size, num_epochs):
     X_train, Y_train = data_train
     callbacks = [
-        tf.keras.callbacks.ReduceLROnPlateau(
+        tf_keras.callbacks.ReduceLROnPlateau(
             'loss', factor=0.95, patience=3, min_lr=1e-6, verbose=1
         ),
     ]
@@ -125,7 +125,7 @@ def main(_config):
     data = get_data()
     model = build_model(data.X_train)
 
-    model.compile(optimizer=tf.optimizers.Adam(0.01))
+    model.compile(optimizer=tf_keras.optimizers.Adam(0.01))
     train_model(model, (data.X_train, data.Y_train))
 
     metrics = evaluate_model(model, (data.X_test, data.Y_test))

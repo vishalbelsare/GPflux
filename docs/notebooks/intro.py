@@ -26,7 +26,6 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-tf.keras.backend.set_floatx("float64")
 tf.get_logger().setLevel("INFO")
 
 # %% [markdown]
@@ -39,7 +38,7 @@ We are going to model a one-dimensional dataset containing observations from a s
 
 # %%
 def motorcycle_data():
-    """ Return inputs and outputs for the motorcycle dataset. We normalise the outputs. """
+    """Return inputs and outputs for the motorcycle dataset. We normalise the outputs."""
     df = pd.read_csv("./data/motor.csv", index_col=0)
     X, Y = df["times"].values.reshape(-1, 1), df["accel"].values.reshape(-1, 1)
     Y = (Y - Y.mean()) / Y.std()
@@ -98,7 +97,7 @@ We now pass our GP layer and likelihood layer into a GPflux `DeepGP` model. The 
 # %%
 single_layer_dgp = gpflux.models.DeepGP([gp_layer], likelihood_layer)
 model = single_layer_dgp.as_training_model()
-model.compile(tf.optimizers.Adam(0.01))
+model.compile(gpflow.keras.tf_keras.optimizers.Adam(0.01))
 
 # %% [markdown]
 """
@@ -169,7 +168,7 @@ gp_layer2 = gpflux.layers.GPLayer(
 likelihood_layer = gpflux.layers.LikelihoodLayer(gpflow.likelihoods.Gaussian(0.1))
 two_layer_dgp = gpflux.models.DeepGP([gp_layer1, gp_layer2], likelihood_layer)
 model = two_layer_dgp.as_training_model()
-model.compile(tf.optimizers.Adam(0.01))
+model.compile(gpflow.keras.tf_keras.optimizers.Adam(0.01))
 
 # %%
 history = model.fit({"inputs": X, "targets": Y}, epochs=int(1e3), verbose=0)

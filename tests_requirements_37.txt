@@ -1,10 +1,12 @@
+# Test requirements specific to Python 3.7
+
 # Code quality tools:
 black==21.7b0
 codecov
 click==8.0.4
 flake8==4.0.1
 isort==5.10.1
-mypy
+mypy<1.4.0  # Newer mypy versions cause issues with Python 3.7 ('Self' from 'typing_extensions').
 pytest
 pytest-cov
 pytest-random-order
@@ -12,7 +14,7 @@ pytest-mock
 
 # For mypy stubs:
 types-Deprecated
-numpy
+numpy<1.22.0  # Newer versions of numpy are not compatible with Python 3.7.
 
 tqdm
 
@@ -21,6 +23,5 @@ jupytext
 nbformat
 nbconvert
 jupyter_client
-ipython!=8.23  # this claims to support typing-extensions-4.6 but doesn't
 ipykernel
 tornado

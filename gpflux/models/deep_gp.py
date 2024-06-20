@@ -22,6 +22,7 @@ import tensorflow as tf
 
 import gpflow
 from gpflow.base import Module, TensorType
+from gpflow.keras import tf_keras
 
 import gpflux
 from gpflux.layers import LayerWithObservations, LikelihoodLayer
@@ -37,22 +38,25 @@ class DeepGP(Module):
     inheriting from :class:`~gpflux.layers.LayerWithObservations`; those will
     be passed the argument ``observations=[inputs, targets]``.
 
+    When data is used with methods in this class (e.g. :meth:`predict_f` method), it needs to
+    be with ``dtype`` corresponding to GPflow's default dtype as in :meth:`~gpflow.default_float()`.
+
     .. note:: This class is **not** a `tf.keras.Model` subclass itself. To access
        Keras features, call either :meth:`as_training_model` or :meth:`as_prediction_model`
        (depending on the use-case) to create a `tf.keras.Model` instance. See the method docstrings
        for more details.
     """
 
-    inputs: tf.keras.Input
-    targets: tf.keras.Input
+    inputs: tf_keras.Input
+    targets: tf_keras.Input
 
-    f_layers: List[tf.keras.layers.Layer]
+    f_layers: List[tf_keras.layers.Layer]
     """ A list of all layers in this DeepGP (just :attr:`likelihood_layer` is separate). """
 
     likelihood_layer: gpflux.layers.LikelihoodLayer
     """ The likelihood layer. """
 
-    default_model_class: Type[tf.keras.Model]
+    default_model_class: Type[tf_keras.Model]
     """
     The default for the *model_class* argument of :meth:`as_training_model` and
     :meth:`as_prediction_model`. This must have the same semantics as `tf.keras.Model`,
@@ -70,14 +74,14 @@ class DeepGP(Module):
 
     def __init__(
         self,
-        f_layers: List[tf.keras.layers.Layer],
+        f_layers: List[tf_keras.layers.Layer],
         likelihood: Union[
             gpflux.layers.LikelihoodLayer, gpflow.likelihoods.Likelihood
         ],  # fully-qualified for autoapi
         *,
         input_dim: Optional[int] = None,
         target_dim: Optional[int] = None,
-        default_model_class: Type[tf.keras.Model] = tf.keras.Model,
+        default_model_class: Type[tf_keras.Model] = tf_keras.Model,
         num_data: Optional[int] = None,
     ):
         """
@@ -96,8 +100,8 @@ class DeepGP(Module):
             If you do not specify a value for this parameter explicitly, it is automatically
             detected from the :attr:`~gpflux.layers.GPLayer.num_data` attribute in the GP layers.
         """
-        self.inputs = tf.keras.Input((input_dim,), name="inputs")
-        self.targets = tf.keras.Input((target_dim,), name="targets")
+        self.inputs = tf_keras.Input((input_dim,), dtype=gpflow.default_float(), name="inputs")
+        self.targets = tf_keras.Input((target_dim,), dtype=gpflow.default_float(), name="targets")
         self.f_layers = f_layers
         if isinstance(likelihood, gpflow.likelihoods.Likelihood):
             self.likelihood_layer = LikelihoodLayer(likelihood)
@@ -108,7 +112,7 @@ class DeepGP(Module):
 
     @staticmethod
     def _validate_num_data(
-        f_layers: List[tf.keras.layers.Layer], num_data: Optional[int] = None
+        f_layers: List[tf_keras.layers.Layer], num_data: Optional[int] = None
     ) -> int:
         """
         Check that the :attr:`~gpflux.layers.gp_layer.GPLayer.num_data`
@@ -129,6 +133,20 @@ class DeepGP(Module):
         if num_data is None:
             raise ValueError("Could not determine num_data; please provide explicitly")
         return num_data
+
+    @staticmethod
+    def _validate_dtype(x: TensorType) -> None:
+        """
+        Check that data ``x`` is of correct ``dtype``, corresponding to GPflow's default dtype as
+        defined by :meth:`~gpflow.default_float()`.
+
+        :raise ValueError: If ``x`` is of incorrect ``dtype``.
+        """
+        if x.dtype != gpflow.default_float():
+            raise ValueError(
+                f"x needs to have dtype {gpflow.default_float()} (according to "
+                f"gpflow.default_float()), however got x with {x.dtype} dtype."
+            )
 
     def _evaluate_deep_gp(
         self,
@@ -180,6 +198,9 @@ class DeepGP(Module):
         targets: Optional[TensorType] = None,
         training: Optional[bool] = None,
     ) -> tf.Tensor:
+        self._validate_dtype(inputs)
+        if targets is not None:
+            self._validate_dtype(targets)
         f_outputs = self._evaluate_deep_gp(inputs, targets=targets, training=training)
         y_outputs = self._evaluate_likelihood(f_outputs, targets=targets, training=training)
         return y_outputs
@@ -188,9 +209,11 @@ class DeepGP(Module):
         """
         :returns: The mean and variance (not the scale!) of ``f``, for compatibility with GPflow
            models.
+        :raise ValueError: If ``x`` is of incorrect ``dtype``.
 
         .. note:: This method does **not** support ``full_cov`` or ``full_output_cov``.
         """
+        self._validate_dtype(inputs)
         f_distribution = self._evaluate_deep_gp(inputs, targets=None)
         return f_distribution.loc, f_distribution.scale.diag ** 2
 
@@ -207,15 +230,15 @@ class DeepGP(Module):
         ]
         return -tf.reduce_sum(all_losses) * self.num_data
 
-    def _get_model_class(self, model_class: Optional[Type[tf.keras.Model]]) -> Type[tf.keras.Model]:
+    def _get_model_class(self, model_class: Optional[Type[tf_keras.Model]]) -> Type[tf_keras.Model]:
         if model_class is not None:
             return model_class
         else:
             return self.default_model_class
 
     def as_training_model(
-        self, model_class: Optional[Type[tf.keras.Model]] = None
-    ) -> tf.keras.Model:
+        self, model_class: Optional[Type[tf_keras.Model]] = None
+    ) -> tf_keras.Model:
         r"""
         Construct a `tf.keras.Model` instance that requires you to provide both ``inputs``
         and ``targets`` to its call. This information is required for
@@ -247,8 +270,8 @@ class DeepGP(Module):
         return model_class([self.inputs, self.targets], outputs)
 
     def as_prediction_model(
-        self, model_class: Optional[Type[tf.keras.Model]] = None
-    ) -> tf.keras.Model:
+        self, model_class: Optional[Type[tf_keras.Model]] = None
+    ) -> tf_keras.Model:
         """
         Construct a `tf.keras.Model` instance that requires only ``inputs``,
         which means you do not have to provide dummy target values when
@@ -274,7 +297,7 @@ def sample_dgp(model: DeepGP) -> Sample:  # TODO: should this be part of a [Vani
     # TODO: error check that all layers implement .sample()?
 
     class ChainedSample(Sample):
-        """ This class chains samples from consecutive layers. """
+        """This class chains samples from consecutive layers."""
 
         def __call__(self, X: TensorType) -> tf.Tensor:
             for f in function_draws:

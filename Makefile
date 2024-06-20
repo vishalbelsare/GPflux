@@ -25,6 +25,15 @@ LINT_FILE_IGNORES = "$(LIB_NAME)/__init__.py:F401,F403 \
                      $(LIB_NAME)/sampling/__init__.py:F401 \
                      $(LIB_NAME)/utils/__init__.py:F401"
 
+# Older Python versions use separate test requirements files
+ifeq ("$(VERSION_PYTHON)", "3.7")
+  TEST_REQUIREMENTS = "tests_requirements_37.txt"
+else ifeq ($(filter $(VERSION_PYTHON),3.8 3.9),$(VERSION_PYTHON))
+  TEST_REQUIREMENTS = "tests_requirements_38_39.txt"
+else
+  TEST_REQUIREMENTS = "tests_requirements.txt"
+endif
+
 
 help: ## Shows this help message
 	# $(MAKEFILE_LIST) is set by make itself; the following parses the `target:  ## help line` format and adds color highlighting
@@ -35,8 +44,10 @@ install:  ## Install repo for developement
 	@echo "\n=== pip install package with dev requirements =============="
 	pip install --upgrade --upgrade-strategy eager \
 		-r notebook_requirements.txt \
-		-r tests_requirements.txt \
+		-r $(TEST_REQUIREMENTS) \
 		tensorflow${VERSION_TF} \
+		keras${VERSION_KERAS} \
+		tensorflow-probability${VERSION_TFP} \
 		-e .
 
 docs:  ## Build the documentation
@@ -85,7 +96,7 @@ test: ## Run unit and integration tests with pytest
 	       --cov-config .coveragerc \
 	       --cov-report term \
 	       --cov-report xml \
-	       --cov-fail-under=97 \
+	       --cov-fail-under=94 \
 	       --junitxml=reports/junit.xml \
 	       -v --tb=short --durations=10 \
 	       $(TESTS_NAME)

@@ -19,9 +19,9 @@ import numpy as np
 import pytest
 import tensorflow as tf
 from tensorflow.python.ops.resource_variable_ops import ResourceVariable
-from tensorflow.python.util import object_identity
 
 import gpflow
+from gpflow.keras import tf_keras
 from gpflow.utilities import parameter_dict
 
 import gpflux
@@ -37,7 +37,7 @@ class CONFIG:
     num_data = 7
 
 
-def count_params(model: tf.keras.models.Model) -> int:
+def count_params(model: tf_keras.models.Model) -> int:
     """
     Counts the total number of scalar parameters in a Model.
 
@@ -55,7 +55,7 @@ def data() -> Tuple[np.ndarray, np.ndarray]:
 
 
 @pytest.fixture
-def model(data) -> tf.keras.models.Model:
+def model(data) -> tf_keras.models.Model:
     """
     Builds a two-layer deep GP model.
     """
@@ -70,11 +70,11 @@ def model(data) -> tf.keras.models.Model:
 
     likelihood_layer = gpflux.layers.LikelihoodLayer(gpflow.likelihoods.Gaussian(0.01))
 
-    X = tf.keras.Input((input_dim,))
+    X = tf_keras.Input((input_dim,))
     f1 = layer1(X)
     f2 = layer2(f1)
     y = likelihood_layer(f2)
-    return tf.keras.Model(inputs=X, outputs=y)
+    return tf_keras.Model(inputs=X, outputs=y)
 
 
 def _size_q_sqrt(num_inducing, output_dim):
@@ -141,11 +141,10 @@ def test_weights_equals_deduplicated_parameter_dict(model):
     # We filter out the parameters of type ResourceVariable.
     # They have been added to the model by the `add_metric` call in the layer.
     parameters = [p for p in parameter_dict(model).values() if not isinstance(p, ResourceVariable)]
-    variables = map(lambda p: p.unconstrained_variable, parameters)
-    deduplicate_variables = object_identity.ObjectIdentitySet(variables)
+    variables = {id(p.unconstrained_variable) for p in parameters}
 
     weights = model.trainable_weights
-    assert len(weights) == len(deduplicate_variables)
+    assert len(weights) == len(variables)
 
-    weights_set = object_identity.ObjectIdentitySet(weights)
-    assert weights_set == deduplicate_variables
+    weights_set = {id(w) for w in weights}
+    assert weights_set == variables

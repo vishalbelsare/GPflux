@@ -19,8 +19,10 @@ from typing import Tuple
 import numpy as np
 import pytest
 import tensorflow as tf
+from packaging.version import Version
 
 import gpflow
+from gpflow.keras import tf_keras
 
 import gpflux
 from gpflux.experiment_support.tensorboard import tensorboard_event_iterator
@@ -39,14 +41,14 @@ class CONFIG:
 
 @pytest.fixture
 def data() -> Tuple[np.ndarray, np.ndarray]:
-    """ Step function: f(x) = -1 for x <= 0 and 1 for x > 0. """
+    """Step function: f(x) = -1 for x <= 0 and 1 for x > 0."""
     X = np.linspace(-1, 1, CONFIG.num_data)
     Y = np.where(X > 0, np.ones_like(X), -np.ones_like(X))
     return (X.reshape(-1, 1), Y.reshape(-1, 1))
 
 
 @pytest.fixture
-def model_and_loss(data) -> Tuple[tf.keras.models.Model, tf.keras.losses.Loss]:
+def model_and_loss(data) -> Tuple[tf_keras.models.Model, tf_keras.losses.Loss]:
     """
     Builds a two-layer deep GP model.
     """
@@ -65,7 +67,7 @@ def model_and_loss(data) -> Tuple[tf.keras.models.Model, tf.keras.losses.Loss]:
     likelihood = gpflow.likelihoods.Gaussian(CONFIG.likelihood_variance)
     gpflow.set_trainable(likelihood.variance, False)
 
-    X = tf.keras.Input((input_dim,))
+    X = tf_keras.Input((input_dim,))
     f1 = layer1(X)
     f2 = layer2(f1)
 
@@ -75,7 +77,7 @@ def model_and_loss(data) -> Tuple[tf.keras.models.Model, tf.keras.losses.Loss]:
     y = likelihood_container(f2)
 
     loss = gpflux.losses.LikelihoodLoss(likelihood)
-    return tf.keras.Model(inputs=X, outputs=y), loss
+    return tf_keras.Model(inputs=X, outputs=y), loss
 
 
 @pytest.mark.parametrize("update_freq", ["epoch", "batch"])
@@ -84,11 +86,11 @@ def test_tensorboard_callback(tmp_path, model_and_loss, data, update_freq):
 
     tmp_path = str(tmp_path)
     dataset = tf.data.Dataset.from_tensor_slices(data).batch(CONFIG.num_data)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=1e-2)
+    optimizer = tf_keras.optimizers.Adam(learning_rate=1e-2)
     model, loss = model_and_loss
     model.compile(optimizer=optimizer, loss=loss)
     callbacks = [
-        tf.keras.callbacks.ReduceLROnPlateau(
+        tf_keras.callbacks.ReduceLROnPlateau(
             monitor="loss",
             patience=1,
             factor=0.95,
@@ -135,12 +137,14 @@ def test_tensorboard_callback(tmp_path, model_and_loss, data, update_freq):
         "self_tracked_trackables[3].likelihood.variance",
     }
 
-    if update_freq == "batch":
-        expected_tags |= {
-            "batch_loss",
-            "batch_gp0_prior_kl",
-            "batch_gp1_prior_kl",
-        }
+    tf_version = Version(tf.__version__)
+    if tf_version < Version("2.8") or tf_version >= Version("2.12"):
+        if update_freq == "batch":
+            expected_tags |= {
+                "batch_loss",
+                "batch_gp0_prior_kl",
+                "batch_gp1_prior_kl",
+            }
 
     # Check all model variables, loss and lr are in tensorboard.
     assert set(records.keys()) == expected_tags
